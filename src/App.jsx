@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import axios from 'axios';
-import { Html5QrcodeScanner } from 'html5-qrcode";
+import { Html5QrcodeScanner } from 'html5-qrcode';
 
 export default function AttendanceTool() {
     const [studentsText, setStudentsText] = useState("");
