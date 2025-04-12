@@ -11,7 +11,6 @@ function useQrScanner(onScanSuccess, onScanFailure, isActive) {
     useEffect(() => {
         if (!isActive) return;
 
-        // Инициализируем сканер
         scannerRef.current = new Html5QrcodeScanner(
             "qr-reader",
             { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
@@ -23,7 +22,6 @@ function useQrScanner(onScanSuccess, onScanFailure, isActive) {
             error => onScanFailure(error)
         );
 
-        // Чистим сканер при размонтировании компонента/смене флага
         return () => {
             scannerRef.current
                 ?.clear()
@@ -41,7 +39,6 @@ export default function AttendanceTool() {
     const [logs, setLogs] = useState([]);
     const [isMarking, setIsMarking] = useState(false);
 
-    // Функция парсинга списка студенческих логинов/паролей
     const parseStudents = useCallback(() => {
         return studentsText
             .split("\n")
@@ -53,54 +50,54 @@ export default function AttendanceTool() {
             });
     }, [studentsText]);
 
-    // Колбэк при успешном считывании
-    const handleScanSuccess = useCallback(decodedText => {
-        const match = decodedText.match(/token=([a-z0-9-]+)/i);
-        if (match) {
-            setToken(match[1]);
-            setScanned(true);
-        }
-    }, []);
-
-    // Колбэк при ошибках сканирования (например, пользователь водит камерой и не считывает QR)
-    const handleScanFailure = useCallback(error => {
-        console.warn("Ошибка сканирования:", error);
-    }, []);
-
-    // Инициируем сканирование QR, только если ещё не было отсканировано
-    useQrScanner(handleScanSuccess, handleScanFailure, !scanned);
-
-    // Функция отправки отметки
-    const markAll = useCallback(async () => {
-        if (!token) return;
+    // Функция для отметки всех
+    const markAll = useCallback(async (tokenArg) => {
+        if (!tokenArg) return;
         setLogs([]);
         setIsMarking(true);
 
         const students = parseStudents();
         for (const student of students) {
             try {
-                // Создаём новую сессию, чтобы куки были уникальны для каждого студента
                 const session = axios.create({ withCredentials: true });
-
                 await session.post("https://attendance-app.mirea.ru/login", {
                     username: student.login,
                     password: student.password,
                 });
-
-                await session.get(`https://attendance-app.mirea.ru/selfapprove?token=${token}`);
+                await session.get(`https://attendance-app.mirea.ru/selfapprove?token=${tokenArg}`);
 
                 setLogs(prevLogs => [...prevLogs, `[✔] ${student.login} — OK`]);
             } catch (error) {
                 setLogs(prevLogs => [
                     ...prevLogs,
-                    `[✘] ${student.login} — ${error.message || "Ошибка"}`,
+                    `[✘] ${student.login} — ${error.message || "Ошибка"}`
                 ]);
             }
         }
         setIsMarking(false);
-    }, [parseStudents, token]);
+    }, [parseStudents]);
 
-    // При желании можно добавить кнопку "Сканировать снова"
+    // Успешное сканирование: извлекаем токен и сразу отмечаем
+    const handleScanSuccess = useCallback(decodedText => {
+        const match = decodedText.match(/token=([a-z0-9-]+)/i);
+        if (match) {
+            const newToken = match[1];
+            setToken(newToken);
+            setScanned(true);
+            // Сразу отправляем запрос
+            markAll(newToken);
+        }
+    }, [markAll]);
+
+    // Ошибки сканирования
+    const handleScanFailure = useCallback(error => {
+        console.warn("Ошибка сканирования:", error);
+    }, []);
+
+    // Инициируем сканирование, пока не отсканировано
+    useQrScanner(handleScanSuccess, handleScanFailure, !scanned);
+
+    // Возможность пересканировать
     const handleRescan = () => {
         setScanned(false);
         setToken("");
@@ -142,9 +139,10 @@ export default function AttendanceTool() {
                 </CardContent>
             </Card>
 
+            {/* Кнопка не нужна, если запрос отправляется автоматически, но можно оставить для повтора */}
             <div className="text-center">
-                <Button onClick={markAll} disabled={!token || isMarking}>
-                    {isMarking ? "Отмечаем..." : "🚀 Отметить всех"}
+                <Button onClick={() => markAll(token)} disabled={!token || isMarking}>
+                    {isMarking ? "Отмечаем..." : "🚀 Повторить отметку"}
                 </Button>
             </div>
 
