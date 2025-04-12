@@ -1,14 +1,47 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import axios from 'axios';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 
+// Хук для работы со сканером QR-кодов
+function useQrScanner(onScanSuccess, onScanFailure, isActive) {
+    const scannerRef = useRef(null);
+
+    useEffect(() => {
+        if (!isActive) return;
+
+        // Инициализируем сканер
+        scannerRef.current = new Html5QrcodeScanner(
+            "qr-reader",
+            { fps: 10, qrbox: { width: 250, height: 250 }, aspectRatio: 1.0 },
+            false
+        );
+
+        scannerRef.current.render(
+            decodedText => onScanSuccess(decodedText),
+            error => onScanFailure(error)
+        );
+
+        // Чистим сканер при размонтировании компонента/смене флага
+        return () => {
+            scannerRef.current
+                ?.clear()
+                .catch(() => {});
+        };
+    }, [isActive, onScanSuccess, onScanFailure]);
+
+    return scannerRef;
+}
+
 export default function AttendanceTool() {
+    const [token, setToken] = useState("");
+    const [scanned, setScanned] = useState(false);
     const [studentsText, setStudentsText] = useState("");
     const [logs, setLogs] = useState([]);
     const [isMarking, setIsMarking] = useState(false);
 
-    // Разбиваем текст на список { login, password }
+    // Функция парсинга списка студенческих логинов/паролей
     const parseStudents = useCallback(() => {
         return studentsText
             .split("\n")
@@ -20,16 +53,33 @@ export default function AttendanceTool() {
             });
     }, [studentsText]);
 
-    // Отправляем запросы по всем студентам
-    const markAll = useCallback(async (token) => {
-        if (!token) return;
+    // Колбэк при успешном считывании
+    const handleScanSuccess = useCallback(decodedText => {
+        const match = decodedText.match(/token=([a-z0-9-]+)/i);
+        if (match) {
+            setToken(match[1]);
+            setScanned(true);
+        }
+    }, []);
 
+    // Колбэк при ошибках сканирования (например, пользователь водит камерой и не считывает QR)
+    const handleScanFailure = useCallback(error => {
+        console.warn("Ошибка сканирования:", error);
+    }, []);
+
+    // Инициируем сканирование QR, только если ещё не было отсканировано
+    useQrScanner(handleScanSuccess, handleScanFailure, !scanned);
+
+    // Функция отправки отметки
+    const markAll = useCallback(async () => {
+        if (!token) return;
         setLogs([]);
         setIsMarking(true);
 
         const students = parseStudents();
         for (const student of students) {
             try {
+                // Создаём новую сессию, чтобы куки были уникальны для каждого студента
                 const session = axios.create({ withCredentials: true });
 
                 await session.post("https://attendance-app.mirea.ru/login", {
@@ -43,46 +93,19 @@ export default function AttendanceTool() {
             } catch (error) {
                 setLogs(prevLogs => [
                     ...prevLogs,
-                    `[✘] ${student.login} — ${error.message || "Ошибка"}`
+                    `[✘] ${student.login} — ${error.message || "Ошибка"}`,
                 ]);
             }
         }
-
         setIsMarking(false);
-    }, [parseStudents]);
+    }, [parseStudents, token]);
 
-    // Инициализируем Html5QrcodeScanner и обрабатываем результат
-    useEffect(() => {
-        const scanner = new Html5QrcodeScanner("qr-reader", {
-            fps: 10,
-            // Жёстко задаём размеры и сохраняем квадратное соотношение сторон
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
-        }, /* verbose= */ false);
-
-        // Обработчик удачного сканирования
-        scanner.render(
-            decodedText => {
-                // Ищем в строке токен
-                const match = decodedText.match(/token=([a-z0-9-]+)/i);
-                if (match) {
-                    // Сразу запускаем отметку
-                    markAll(match[1]);
-                    // После первого распознавания QR можно очистить сканер
-                    scanner.clear().catch(() => {});
-                }
-            },
-            error => {
-                // Можем логировать ошибки сканирования
-                console.warn("Ошибка сканирования:", error);
-            }
-        );
-
-        // Возвращаем функцию очистки сканера при размонтировании компонента
-        return () => {
-            scanner.clear().catch(() => {});
-        };
-    }, [markAll]);
+    // При желании можно добавить кнопку "Сканировать снова"
+    const handleRescan = () => {
+        setScanned(false);
+        setToken("");
+        setLogs([]);
+    };
 
     return (
         <div className="p-4 space-y-4 max-w-md mx-auto">
@@ -91,11 +114,17 @@ export default function AttendanceTool() {
             <Card>
                 <CardContent className="p-4 space-y-2">
                     <p className="text-sm">1️⃣ Отсканируй QR с пары:</p>
-                    {/* Окно камеры фиксированного размера */}
-                    <div
-                        id="qr-reader"
-                        style={{ width: 250, height: 250, margin: "0 auto" }}
-                    />
+                    {!scanned && <div id="qr-reader" className="w-full h-64" />}
+                    {token && (
+                        <p className="break-all text-xs">
+                            🔗 Токен: <code>{token}</code>
+                        </p>
+                    )}
+                    {scanned && (
+                        <Button variant="outline" onClick={handleRescan}>
+                            Сканировать снова
+                        </Button>
+                    )}
                 </CardContent>
             </Card>
 
@@ -113,8 +142,13 @@ export default function AttendanceTool() {
                 </CardContent>
             </Card>
 
+            <div className="text-center">
+                <Button onClick={markAll} disabled={!token || isMarking}>
+                    {isMarking ? "Отмечаем..." : "🚀 Отметить всех"}
+                </Button>
+            </div>
+
             <div className="mt-4 space-y-1 text-sm">
-                {isMarking && <div>Обработка...</div>}
                 {logs.map((log, i) => (
                     <div key={i} className="font-mono break-words">
                         {log}
