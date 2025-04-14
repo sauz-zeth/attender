@@ -146,9 +146,9 @@ const QrScanner = ({ onClose }) => {
             <div className="flex justify-center my-4 absolute top-4 z-50">
                 <Select
                     value={selectedCameraId || ""}
-                    onValueChange={(value) => {
+                    onValueChange={async (value) => {
+                        if (value === selectedCameraId) return;
                         setSelectedCameraId(value);
-                        startScanner();
                     }}
                     disabled={cameras.length === 0}
                 >
