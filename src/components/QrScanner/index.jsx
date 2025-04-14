@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+
 import {
     Select,
     SelectContent,
@@ -13,6 +15,9 @@ const QrScanner = ({ onClose }) => {
     const [scannedText, setScannedText] = useState("");
     const [cameras, setCameras] = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [maxZoom, setMaxZoom] = useState(1);
+    const [minZoom, setMinZoom] = useState(1);
     const qrCodeRegionId = "qr-reader";
     const html5QrCodeRef = useRef(null);
 
@@ -32,7 +37,7 @@ const QrScanner = ({ onClose }) => {
     const startScanner = async () => {
         if (!selectedCameraId) return;
 
-        await stopScanner(); // остановим предыдущий сканер перед запуском нового
+        await stopScanner();
         html5QrCodeRef.current = new Html5Qrcode(qrCodeRegionId);
         try {
             await html5QrCodeRef.current.start(
@@ -41,16 +46,20 @@ const QrScanner = ({ onClose }) => {
                     fps: 10,
                     qrbox: 250,
                     rememberLastUsedCamera: true,
-                    aspectRatio: 4/3,
-                    showTorchButtonIfSupported: true,
-                    showZoomSliderIfSupported: true,
-                    defaultZoomValueIfSupported: 2
+                    aspectRatio: 4 / 3,
                 },
                 (decodedText) => {
                     setScannedText(decodedText);
                 },
                 () => {}
             );
+
+            const capabilities = html5QrCodeRef.current.getRunningTrackCapabilities();
+            if (capabilities.zoom) {
+                setMinZoom(capabilities.zoom.min);
+                setMaxZoom(capabilities.zoom.max);
+                setZoomLevel(capabilities.zoom.min);
+            }
         } catch (err) {
             console.error("Ошибка запуска сканера:", err);
         }
@@ -64,12 +73,28 @@ const QrScanner = ({ onClose }) => {
         }
     };
 
+    const applyZoom = async (zoomValue) => {
+        if (html5QrCodeRef.current) {
+            try {
+                await html5QrCodeRef.current.applyVideoConstraints({
+                    advanced: [{ zoom: zoomValue }],
+                });
+            } catch (error) {
+                console.error("Не удалось применить зум:", error);
+            }
+        }
+    };
+
     useEffect(() => {
         startScanner();
         return () => {
             stopScanner();
         };
     }, [selectedCameraId]);
+
+    useEffect(() => {
+        applyZoom(zoomLevel);
+    }, [zoomLevel]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col justify-between items-center p-4 overflow-y-auto">
@@ -108,8 +133,25 @@ const QrScanner = ({ onClose }) => {
 
             <div
                 id={qrCodeRegionId}
-                className="flex w-full h-full max-w-sm  rounded-md"
+                className="flex w-full h-full max-w-sm rounded-md"
             />
+
+            {maxZoom > minZoom && (
+                <div className="flex flex-col items-center space-y-2 mt-4 w-full max-w-sm">
+                    <label htmlFor="zoomRange" className="text-sm font-medium text-foreground">
+                        Зум:
+                    </label>
+                    <Slider
+                        id="zoomRange"
+                        min={minZoom}
+                        max={maxZoom}
+                        step={0.1}
+                        value={[zoomLevel]}
+                        onValueChange={([value]) => setZoomLevel(value)}
+                        className="w-full"
+                    />
+                </div>
+            )}
 
             {scannedText && (
                 <p className="text-green-600 font-semibold">
