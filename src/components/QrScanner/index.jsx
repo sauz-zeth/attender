@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
 
 import {
     Select,
@@ -20,6 +19,32 @@ const QrScanner = ({ onClose }) => {
     const [minZoom, setMinZoom] = useState(1);
     const qrCodeRegionId = "qr-reader";
     const html5QrCodeRef = useRef(null);
+    const lastDistanceRef = useRef(null);
+
+    const handleTouchMove = async (e) => {
+        if (e.touches.length === 2) {
+            const [touch1, touch2] = e.touches;
+            const distance = Math.hypot(
+                touch1.clientX - touch2.clientX,
+                touch1.clientY - touch2.clientY
+            );
+
+            if (lastDistanceRef.current != null) {
+                const delta = distance - lastDistanceRef.current;
+                const newZoom = Math.min(
+                    maxZoom,
+                    Math.max(minZoom, zoomLevel + delta * 0.01)
+                );
+                setZoomLevel(newZoom);
+            }
+
+            lastDistanceRef.current = distance;
+        }
+    };
+
+    const handleTouchEnd = () => {
+        lastDistanceRef.current = null;
+    };
 
     useEffect(() => {
         Html5Qrcode.getCameras()
@@ -133,25 +158,10 @@ const QrScanner = ({ onClose }) => {
 
             <div
                 id={qrCodeRegionId}
-                className="flex w-full h-full max-w-sm rounded-md"
+                className="flex w-full h-full max-w-sm h-[300px] rounded-md"
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
             />
-
-            {maxZoom > minZoom && (
-                <div className="flex flex-col items-center space-y-2 mt-4 w-full max-w-sm">
-                    <label htmlFor="zoomRange" className="text-sm font-medium text-foreground">
-                        Зум:
-                    </label>
-                    <Slider
-                        id="zoomRange"
-                        min={minZoom}
-                        max={maxZoom}
-                        step={0.1}
-                        value={[zoomLevel]}
-                        onValueChange={([value]) => setZoomLevel(value)}
-                        className="w-full"
-                    />
-                </div>
-            )}
 
             {scannedText && (
                 <p className="text-green-600 font-semibold">
