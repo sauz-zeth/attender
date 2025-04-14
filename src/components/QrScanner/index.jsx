@@ -84,7 +84,6 @@ const QrScanner = ({ onClose }) => {
                     fps: 10,
                     qrbox: 250,
                     rememberLastUsedCamera: true,
-                    aspectRatio: 4 / 3,
                 },
                 (decodedText) => {
                     setScannedText(decodedText);
