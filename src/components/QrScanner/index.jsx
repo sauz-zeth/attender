@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { Button } from "@/components/ui/button";
+
 import {
     Select,
     SelectContent,
@@ -10,17 +11,6 @@ import {
 } from "@/components/ui/select";
 
 const QrScanner = ({ onClose }) => {
-    const [scannedText, setScannedText] = useState("");
-    const [cameras, setCameras] = useState([]);
-    const [selectedCameraId, setSelectedCameraId] = useState(null);
-    const [zoomLevel, setZoomLevel] = useState(1);
-    const [maxZoom, setMaxZoom] = useState(1);
-    const [minZoom, setMinZoom] = useState(1);
-    const qrCodeRegionId = "qr-reader";
-    const html5QrCodeRef = useRef(null);
-    const lastDistanceRef = useRef(null);
-
-    // Отключение pinch-to-zoom страницы
     useEffect(() => {
         const handleTouchMove = (e) => {
             if (e.touches.length > 1) {
@@ -33,6 +23,41 @@ const QrScanner = ({ onClose }) => {
             document.removeEventListener("touchmove", handleTouchMove);
         };
     }, []);
+
+    const [scannedText, setScannedText] = useState("");
+    const [cameras, setCameras] = useState([]);
+    const [selectedCameraId, setSelectedCameraId] = useState(null);
+    const [zoomLevel, setZoomLevel] = useState(1);
+    const [maxZoom, setMaxZoom] = useState(1);
+    const [minZoom, setMinZoom] = useState(1);
+    const qrCodeRegionId = "qr-reader";
+    const html5QrCodeRef = useRef(null);
+    const lastDistanceRef = useRef(null);
+
+    const handleTouchMove = async (e) => {
+        if (e.touches.length === 2) {
+            const [touch1, touch2] = e.touches;
+            const distance = Math.hypot(
+                touch1.clientX - touch2.clientX,
+                touch1.clientY - touch2.clientY
+            );
+
+            if (lastDistanceRef.current != null) {
+                const delta = distance - lastDistanceRef.current;
+                const newZoom = Math.min(
+                    maxZoom,
+                    Math.max(minZoom, zoomLevel + delta * 0.01)
+                );
+                setZoomLevel(newZoom);
+            }
+
+            lastDistanceRef.current = distance;
+        }
+    };
+
+    const handleTouchEnd = () => {
+        lastDistanceRef.current = null;
+    };
 
     useEffect(() => {
         Html5Qrcode.getCameras()
@@ -57,7 +82,7 @@ const QrScanner = ({ onClose }) => {
                 selectedCameraId,
                 {
                     fps: 10,
-                    qrbox: () => ({ width: 250, height: 250 }),
+                    qrbox: { width: 250, height: 250 },
                     rememberLastUsedCamera: true,
                 },
                 (decodedText) => {
@@ -106,27 +131,6 @@ const QrScanner = ({ onClose }) => {
                     wrapper.style.zIndex = "0";
                     wrapper.style.overflow = "hidden";
                 }
-
-                // Фиксируем размеры квадрата для QR-кода
-                const qrboxRegion = document.querySelector(`#${qrCodeRegionId} div`);
-                if (qrboxRegion) {
-                    qrboxRegion.style.width = "250px";
-                    qrboxRegion.style.height = "250px";
-                    qrboxRegion.style.margin = "auto";
-                    qrboxRegion.style.position = "absolute";
-                    qrboxRegion.style.top = "50%";
-                    qrboxRegion.style.left = "50%";
-                    qrboxRegion.style.transform = "translate(-50%, -50%)";
-                    qrboxRegion.style.border = "2px solid rgba(255, 255, 255, 0.4)";
-                    qrboxRegion.style.boxSizing = "border-box";
-
-                    const observer = new MutationObserver(() => {
-                        qrboxRegion.style.width = "250px";
-                        qrboxRegion.style.height = "250px";
-                        qrboxRegion.style.transform = "translate(-50%, -50%)";
-                    });
-                    observer.observe(qrboxRegion, { attributes: true, attributeFilter: ["style"] });
-                }
             }, 500);
         } catch (err) {
             console.error("Ошибка запуска сканера:", err);
@@ -141,6 +145,18 @@ const QrScanner = ({ onClose }) => {
         }
     };
 
+    const applyZoom = async (zoomValue) => {
+        if (html5QrCodeRef.current) {
+            try {
+                await html5QrCodeRef.current.applyVideoConstraints({
+                    advanced: [{ zoom: zoomValue }],
+                });
+            } catch (error) {
+                console.error("Не удалось применить зум:", error);
+            }
+        }
+    };
+
     useEffect(() => {
         startScanner();
         return () => {
@@ -148,30 +164,9 @@ const QrScanner = ({ onClose }) => {
         };
     }, [selectedCameraId]);
 
-    const handleTouchMove = async (e) => {
-        if (e.touches.length === 2) {
-            const [touch1, touch2] = e.touches;
-            const distance = Math.hypot(
-                touch1.clientX - touch2.clientX,
-                touch1.clientY - touch2.clientY
-            );
-
-            if (lastDistanceRef.current != null) {
-                const delta = distance - lastDistanceRef.current;
-                const newZoom = Math.min(
-                    maxZoom,
-                    Math.max(minZoom, zoomLevel + delta * 0.01)
-                );
-                setZoomLevel(newZoom);
-            }
-
-            lastDistanceRef.current = distance;
-        }
-    };
-
-    const handleTouchEnd = () => {
-        lastDistanceRef.current = null;
-    };
+    useEffect(() => {
+        applyZoom(zoomLevel);
+    }, [zoomLevel]);
 
     return (
         <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex flex-col justify-between items-center p-4 overflow-y-auto">
@@ -196,10 +191,12 @@ const QrScanner = ({ onClose }) => {
                     </SelectTrigger>
                     <SelectContent className="w-50 text-xs">
                         {cameras.map((camera) => (
-                            <SelectItem key={camera.id} value={camera.id} className="text-xs pr-10">
-                <span className="block truncate">
-                  {camera.label || `Камера ${camera.id}`}
-                </span>
+                            <SelectItem
+                                key={camera.id}
+                                value={camera.id}
+                                className="text-xs pr-10"
+                            >
+                                <span className="block truncate">{camera.label || `Камера ${camera.id}`}</span>
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -208,7 +205,7 @@ const QrScanner = ({ onClose }) => {
 
             <div
                 id={qrCodeRegionId}
-                className="fixed inset-0 z-0 w-full h-full overflow-hidden"
+                className="fixed inset-0 w-screen h-screen"
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             />
