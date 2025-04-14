@@ -82,7 +82,7 @@ const QrScanner = ({ onClose }) => {
                 selectedCameraId,
                 {
                     fps: 10,
-                    qrbox: { width: 300, height: 200 },
+                    qrbox: 250,
                     rememberLastUsedCamera: true,
                 },
                 (decodedText) => {
@@ -97,41 +97,6 @@ const QrScanner = ({ onClose }) => {
                 setMaxZoom(capabilities.zoom.max);
                 setZoomLevel(capabilities.zoom.min);
             }
-
-            setTimeout(() => {
-                const video = document.querySelector(`#${qrCodeRegionId} video`);
-                const canvas = document.querySelector(`#${qrCodeRegionId} canvas`);
-                const wrapper = document.getElementById(qrCodeRegionId);
-
-                if (video) {
-                    video.style.position = "absolute";
-                    video.style.top = "0";
-                    video.style.left = "0";
-                    video.style.width = "100vw";
-                    video.style.height = "100vh";
-                    video.style.objectFit = "cover";
-                    video.style.zIndex = "0";
-                }
-
-                if (canvas) {
-                    canvas.style.position = "absolute";
-                    canvas.style.top = "0";
-                    canvas.style.left = "0";
-                    canvas.style.width = "100vw";
-                    canvas.style.height = "100vh";
-                    canvas.style.zIndex = "1";
-                }
-
-                if (wrapper) {
-                    wrapper.style.position = "fixed";
-                    wrapper.style.top = "0";
-                    wrapper.style.left = "0";
-                    wrapper.style.width = "100vw";
-                    wrapper.style.height = "100vh";
-                    wrapper.style.zIndex = "0";
-                    wrapper.style.overflow = "hidden";
-                }
-            }, 500);
         } catch (err) {
             console.error("Ошибка запуска сканера:", err);
         }
@@ -205,7 +170,7 @@ const QrScanner = ({ onClose }) => {
 
             <div
                 id={qrCodeRegionId}
-                className="fixed inset-0 w-screen h-screen"
+                className="flex w-full h-full max-w-sm rounded-md"
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
             />
