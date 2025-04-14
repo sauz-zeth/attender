@@ -82,7 +82,7 @@ const QrScanner = ({ onClose }) => {
                 selectedCameraId,
                 {
                     fps: 10,
-                    qrbox: { width: 250, height: 250 },
+                    qrbox: { width: 300, height: 200 },
                     rememberLastUsedCamera: true,
                 },
                 (decodedText) => {
