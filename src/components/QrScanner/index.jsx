@@ -9,6 +9,71 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 
+function PinchZoomContainer({ children }) {
+    const containerRef = React.useRef(null);
+    const [scale, setScale] = React.useState(1);
+
+    // Будем хранить активные пальцы
+    const pointers = React.useRef([]);
+    // Начальная дистанция между пальцами
+    const initialDist = React.useRef(0);
+
+    const getDistance = ([p1, p2]) => {
+        const dx = p1.clientX - p2.clientX;
+        const dy = p1.clientY - p2.clientY;
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const onPointerDown = (e) => {
+        containerRef.current.setPointerCapture(e.pointerId);
+        pointers.current.push(e);
+        // Если два пальца, сохраним стартовую дистанцию
+        if (pointers.current.length === 2) {
+            initialDist.current = getDistance(pointers.current);
+        }
+    };
+
+    const onPointerMove = (e) => {
+        // Обновим инфу о пальцах
+        pointers.current = pointers.current.map((p) =>
+            p.pointerId === e.pointerId ? e : p
+        );
+        // Если два пальца
+        if (pointers.current.length === 2) {
+            const dist = getDistance(pointers.current);
+            // При желании ограничим масштаб, напр. от 0.5 до 4
+            const newScale = Math.min(Math.max(scale * (dist / initialDist.current), 0.5), 4);
+            setScale(newScale);
+            // Обновим "предыдущую" дистанцию
+            initialDist.current = dist;
+        }
+    };
+
+    const onPointerUpOrCancel = (e) => {
+        containerRef.current.releasePointerCapture(e.pointerId);
+        // Убираем палец из списка
+        pointers.current = pointers.current.filter((p) => p.pointerId !== e.pointerId);
+    };
+
+    return (
+        <div
+            ref={containerRef}
+            style={{
+                touchAction: "none",
+                overflow: "hidden",
+                transform: `scale(${scale})`,
+                transformOrigin: "center",
+            }}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUpOrCancel}
+            onPointerCancel={onPointerUpOrCancel}
+        >
+            {children}
+        </div>
+    );
+}
+
 const QrScanner = ({ onClose }) => {
     const [scannedText, setScannedText] = useState("");
     const [cameras, setCameras] = useState([]);
@@ -104,10 +169,12 @@ const QrScanner = ({ onClose }) => {
                 </Select>
             </div>
 
-            <div
-                id={qrCodeRegionId}
-                className="flex justify-center w-full h-full max-w-sm bg-gray-100 rounded-md"
-            />
+            <PinchZoomContainer>
+                <div
+                    id={qrCodeRegionId}
+                    className="flex w-full h-full max-w-sm rounded-md"
+                />
+            </PinchZoomContainer>
 
             {scannedText && (
                 <p className="text-green-600 font-semibold">

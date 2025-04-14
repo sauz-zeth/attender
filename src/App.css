@@ -5,6 +5,12 @@
   text-align: center;
 }
 
+#qr-reader video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;
