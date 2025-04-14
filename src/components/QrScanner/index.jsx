@@ -11,7 +11,6 @@ import {
 
 const QrScanner = ({ onClose }) => {
     const [scannedText, setScannedText] = useState("");
-    const [isScanning, setIsScanning] = useState(false);
     const [cameras, setCameras] = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState(null);
     const qrCodeRegionId = "qr-reader";
@@ -50,7 +49,6 @@ const QrScanner = ({ onClose }) => {
                 },
                 () => {}
             );
-            setIsScanning(true);
         } catch (err) {
             console.error("Ошибка запуска сканера:", err);
         }
@@ -61,7 +59,6 @@ const QrScanner = ({ onClose }) => {
             await html5QrCodeRef.current.stop();
             await html5QrCodeRef.current.clear();
             html5QrCodeRef.current = null;
-            setIsScanning(false);
         }
     };
 
@@ -81,7 +78,7 @@ const QrScanner = ({ onClose }) => {
                 ×
             </button>
 
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 w-11/12 max-w-sm">
+            <div className="flex justify-center my-4 absolute top-4 z-50">
                 <Select
                     value={selectedCameraId || ""}
                     onValueChange={(value) => {
@@ -90,13 +87,17 @@ const QrScanner = ({ onClose }) => {
                     }}
                     disabled={cameras.length === 0}
                 >
-                    <SelectTrigger className="w-full bg-white py-1 px-3 text-sm">
+                    <SelectTrigger className="w-50 bg-white py-1 px-3 text-xs relative">
                         <SelectValue placeholder="Выберите камеру" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="w-50 text-xs">
                         {cameras.map((camera) => (
-                            <SelectItem key={camera.id} value={camera.id}>
-                                {camera.label || `Камера ${camera.id}`}
+                            <SelectItem
+                                key={camera.id}
+                                value={camera.id}
+                                className="text-xs pr-10"
+                            >
+                                <span className="block truncate">{camera.label || `Камера ${camera.id}`}</span>
                             </SelectItem>
                         ))}
                     </SelectContent>
@@ -105,7 +106,7 @@ const QrScanner = ({ onClose }) => {
 
             <div
                 id={qrCodeRegionId}
-                className="flex justify-center w-full h-[100vw] max-h-[100vh] max-w-sm bg-gray-100 rounded-md aspect-square"
+                className="flex justify-center w-full h-full max-w-sm bg-gray-100 rounded-md"
             />
 
             {scannedText && (
