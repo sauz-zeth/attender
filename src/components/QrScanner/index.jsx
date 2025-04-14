@@ -11,6 +11,19 @@ import {
 } from "@/components/ui/select";
 
 const QrScanner = ({ onClose }) => {
+    useEffect(() => {
+        const handleTouchMove = (e) => {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        };
+        document.addEventListener("touchmove", handleTouchMove, { passive: false });
+
+        return () => {
+            document.removeEventListener("touchmove", handleTouchMove);
+        };
+    }, []);
+
     const [scannedText, setScannedText] = useState("");
     const [cameras, setCameras] = useState([]);
     const [selectedCameraId, setSelectedCameraId] = useState(null);
